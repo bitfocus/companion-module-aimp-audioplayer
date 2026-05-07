@@ -1,0 +1,19 @@
+{
+  "name": "companion-module-aimp-remote",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "main.js",
+  "manufacturer": "AIMP",
+  "product": ["AIMP Remote Control"],
+  "shortname": "aimp-remote",
+  "scripts": {
+    "build": "companion-module-build",
+    "build:dev": "companion-module-build --dev"
+  },
+  "devDependencies": {
+    "@companion-module/tools": "^3.0.1"
+  },
+  "dependencies": {
+    "@companion-module/base": "^2.0.4"
+  }
+}

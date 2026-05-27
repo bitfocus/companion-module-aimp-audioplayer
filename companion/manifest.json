@@ -6,8 +6,8 @@
   "version": "0.2.0",
   "type": "connection",
   "license": "MIT",
-  "repository": "git+https://github.com/your-username/companion-module-aimp-remote.git",
-  "bugs": "https://github.com/your-username/companion-module-aimp-remote/issues",
+  "repository": "git+https://gitlab.com/slvmadi/companion-aimp-module.git.git",
+  "bugs": "https://gitlab.com/slvmadi/companion-aimp-module/issues",
   "maintainers": [
     {
       "name": "mikle103, fursyt12",

@@ -26,8 +26,10 @@ export default class AimpRemote extends InstanceBase {
 		this.playlistChoices = []
 		// Маппинг aimp_id → { index, name, aimpId } для конвертации при API-вызовах
 		this.playlistsMap = {}
-		// Кэш треков: ключ = aimp_id плейлиста
-		this.tracksCache = {}     // { [aimpId]: [{id, label}] }
+		// Кэш треков: ключ = aimp_id плейлиста, id трека = file_path
+		this.tracksCache = {}     // { [aimpId]: [{id: file_path, label}] }
+		// Маппинг file_path → текущий порядковый index трека для API-вызовов
+		this.tracksMap = {}       // { [aimpId]: {[file_path]: index} }
 
 		this._pollTimer = null
 		this._connectionOk = false
@@ -58,6 +60,7 @@ export default class AimpRemote extends InstanceBase {
 		this.config = config
 		this._stopPolling()
 		this.tracksCache = {}
+		this.tracksMap = {}
 		this.playlistChoices = []
 		this.playlistsMap = {}
 		this._bootstrap()
@@ -150,6 +153,13 @@ export default class AimpRemote extends InstanceBase {
 		return this.playlistsMap[aimpId]?.name ?? String(aimpId ?? '')
 	}
 
+	/** file_path трека → текущий порядковый index для API-запросов */
+	_trackIndex(aimpPlaylistId, filePath) {
+		const map = this.tracksMap[String(aimpPlaylistId)]
+		if (!map) return undefined
+		return map[filePath]
+	}
+
 	/** Обновляет playlistChoices и playlistsMap из сырого массива API */
 	_updatePlaylistsFromApi(list) {
 		this.playlistChoices = list.map(pl => ({
@@ -204,12 +214,21 @@ export default class AimpRemote extends InstanceBase {
 		if (!Array.isArray(list)) {
 			const hadCache = !!this.tracksCache[key]
 			this.tracksCache[key] = [{ id: '0', label: '⚠ Failed to load' }]
+			this.tracksMap[key] = {}
 			return hadCache
 		}
+		// id трека = file_path (стабильный), label = "N. Artist – Title"
 		const newTracks = list.map((t, i) => ({
-			id: String(t.id ?? i),
+			id: t.file_path || String(t.id ?? i),
 			label: `${i + 1}. ${[t.artist, t.title].filter(Boolean).join(' – ') || t.file_path || '?'}`,
 		}))
+
+		// Строим маппинг file_path → текущий порядковый index для API-вызовов
+		const newMap = {}
+		for (const t of list) {
+			const fp = t.file_path || String(t.id)
+			newMap[fp] = t.id   // t.id = порядковый index в плейлисте
+		}
 
 		const oldTracks = this.tracksCache[key]
 		let changed = false
@@ -223,6 +242,9 @@ export default class AimpRemote extends InstanceBase {
 				}
 			}
 		}
+
+		// Маппинг обновляем всегда — порядковые индексы могли сдвинуться
+		this.tracksMap[key] = newMap
 
 		if (changed) {
 			this.tracksCache[key] = newTracks
@@ -307,6 +329,7 @@ export default class AimpRemote extends InstanceBase {
 				this._connectionOk = false
 				this.updateStatus(InstanceStatus.ConnectionFailure)
 				this.tracksCache = {}
+				this.tracksMap = {}
 				this.state._playlistAimpIds = ''
 			}
 			return
@@ -324,12 +347,12 @@ export default class AimpRemote extends InstanceBase {
 		this.state.duration    = status.duration ?? this.state.duration
 
 		// ── Playing track ─────────────────────────
-		// playing_playlist содержит aimp_id, playing_track — порядковый id
+		// playing_playlist содержит aimp_id, playing_track — file_path как стабильный id
 		const pp = status.playing_playlist
 		const pt = status.playing_track
 		this.state.playingPlaylistId   = pp != null ? String(pp.aimp_id ?? pp.id) : ''
 		this.state.playingPlaylistName = pp != null ? (pp.name ?? '') : ''
-		this.state.playingTrackId      = pt != null ? String(pt.id)   : ''
+		this.state.playingTrackId      = pt != null ? (pt.file_path || String(pt.id)) : ''
 		this.state.playingTrackTitle   = pt != null ? (pt.title  ?? '') : ''
 		this.state.playingTrackArtist  = pt != null ? (pt.artist ?? '') : ''
 
@@ -355,10 +378,11 @@ export default class AimpRemote extends InstanceBase {
 			}
 		}
 		if (ft != null) {
-			this.state.focusTrackId     = String(ft.id)
+			const ftId = ft.file_path || String(ft.id)
+			this.state.focusTrackId     = ftId
 			this.state.focusTrackTitle  = ft.title  ?? ''
 			this.state.focusTrackArtist = ft.artist ?? ''
-			this.state.focusTrackIndex  = this._trackIndexById(this.state.focusPlaylistId, String(ft.id))
+			this.state.focusTrackIndex  = this._trackIndexById(this.state.focusPlaylistId, ftId)
 		}
 
 		// ── Playlists ─────────────────────────────
@@ -379,6 +403,7 @@ export default class AimpRemote extends InstanceBase {
 				for (const oldId of oldAimpIds) {
 					if (!newAimpIdSet.has(oldId)) {
 						delete this.tracksCache[oldId]
+						delete this.tracksMap[oldId]
 					}
 				}
 
@@ -533,7 +558,7 @@ export default class AimpRemote extends InstanceBase {
 			},
 			focus_track_is: {
 				type: 'boolean',
-				name: 'Focus: Track matches (by track ID)',
+				name: 'Focus: Track matches (by file path)',
 				defaultStyle: { bgcolor: 0x005599, color: 0xffffff },
 				options: [
 					{
@@ -542,13 +567,13 @@ export default class AimpRemote extends InstanceBase {
 						default: plChoices[0]?.id ?? '',
 					},
 					{
-						type: 'number', id: 'trackId', label: 'Track ID',
-						default: 0, min: 0, max: 99999,
+						type: 'textinput', id: 'trackId', label: 'Track file path',
+						default: '',
 					},
 				],
 				callback: (fb) =>
 					String(this.state.focusPlaylistId) === String(fb.options.playlistId) &&
-					String(this.state.focusTrackId)    === String(fb.options.trackId),
+					this.state.focusTrackId === fb.options.trackId,
 			},
 			playing_playlist_is: {
 				type: 'boolean',
@@ -565,7 +590,7 @@ export default class AimpRemote extends InstanceBase {
 			},
 			playing_track_is: {
 				type: 'boolean',
-				name: 'Playing: Track matches (playlist + track ID)',
+				name: 'Playing: Track matches (playlist + file path)',
 				defaultStyle: { bgcolor: 0x006600, color: 0xffffff },
 				options: [
 					{
@@ -574,13 +599,13 @@ export default class AimpRemote extends InstanceBase {
 						default: plChoices[0]?.id ?? '',
 					},
 					{
-						type: 'number', id: 'trackId', label: 'Track ID',
-						default: 0, min: 0, max: 99999,
+						type: 'textinput', id: 'trackId', label: 'Track file path',
+						default: '',
 					},
 				],
 				callback: (fb) =>
 					String(this.state.playingPlaylistId) === String(fb.options.playlistId) &&
-					String(this.state.playingTrackId)    === String(fb.options.trackId),
+					this.state.playingTrackId === fb.options.trackId,
 			},
 		})
 	}
@@ -808,17 +833,19 @@ export default class AimpRemote extends InstanceBase {
 				],
 				callback: async (action) => {
 					const aimpId = action.options.playlistId
-					const idx = this._playlistIndex(aimpId)
-					if (idx == null) return
+					const plIdx = this._playlistIndex(aimpId)
+					if (plIdx == null) return
 					await this._ensureTracksLoaded(aimpId)
 					const tracks = this.tracksCache[String(aimpId)]
 					if (!tracks || tracks.length === 0) return
 					const currentTrackId = String(this.state.playingPlaylistId) === String(aimpId)
 						? this.state.playingTrackId
 						: this.state.focusTrackId
-					const currentIdx = tracks.findIndex(t => t.id === String(currentTrackId))
+					const currentIdx = tracks.findIndex(t => t.id === currentTrackId)
 					const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % tracks.length : 0
-					await this._request('POST', `/playlists/${idx}/tracks/${tracks[nextIdx].id}/play`)
+					const trackApiIdx = this._trackIndex(aimpId, tracks[nextIdx].id)
+					if (trackApiIdx == null) return
+					await this._request('POST', `/playlists/${plIdx}/tracks/${trackApiIdx}/play`)
 				},
 			},
 			playlist_track_prev: {
@@ -834,17 +861,19 @@ export default class AimpRemote extends InstanceBase {
 				],
 				callback: async (action) => {
 					const aimpId = action.options.playlistId
-					const idx = this._playlistIndex(aimpId)
-					if (idx == null) return
+					const plIdx = this._playlistIndex(aimpId)
+					if (plIdx == null) return
 					await this._ensureTracksLoaded(aimpId)
 					const tracks = this.tracksCache[String(aimpId)]
 					if (!tracks || tracks.length === 0) return
 					const currentTrackId = String(this.state.playingPlaylistId) === String(aimpId)
 						? this.state.playingTrackId
 						: this.state.focusTrackId
-					const currentIdx = tracks.findIndex(t => t.id === String(currentTrackId))
+					const currentIdx = tracks.findIndex(t => t.id === currentTrackId)
 					const prevIdx = currentIdx > 0 ? currentIdx - 1 : tracks.length - 1
-					await this._request('POST', `/playlists/${idx}/tracks/${tracks[prevIdx].id}/play`)
+					const trackApiIdx = this._trackIndex(aimpId, tracks[prevIdx].id)
+					if (trackApiIdx == null) return
+					await this._request('POST', `/playlists/${plIdx}/tracks/${trackApiIdx}/play`)
 				},
 			},
 
@@ -943,16 +972,22 @@ export default class AimpRemote extends InstanceBase {
 						return
 					}
 					const trackField = `track_${playlistId}`
-					const trackId = action.options[trackField]
-					if (trackId == null || trackId === '') {
-						this.log('warn', `track_action_browse: trackId not found in field "${trackField}"`)
+					const trackFilePath = action.options[trackField]
+					if (trackFilePath == null || trackFilePath === '') {
+						this.log('warn', `track_action_browse: track not found in field "${trackField}"`)
 						return
 					}
-					this.log('debug', `track_action_browse: playlist=${playlistId} (idx=${idx}), track=${trackId}, action=${act}`)
+					// Конвертируем file_path → порядковый index для API
+					const trackApiIdx = this._trackIndex(playlistId, trackFilePath)
+					if (trackApiIdx == null) {
+						this.log('warn', `track_action_browse: cannot resolve track index for "${trackFilePath}"`)
+						return
+					}
+					this.log('debug', `track_action_browse: playlist=${playlistId} (plIdx=${idx}), track=${trackApiIdx}, action=${act}`)
 					if (act === 'play') {
-						await this._request('POST', `/playlists/${idx}/tracks/${trackId}/play`)
+						await this._request('POST', `/playlists/${idx}/tracks/${trackApiIdx}/play`)
 					} else {
-						await this._request('POST', `/playlists/${idx}/tracks/${trackId}/select`)
+						await this._request('POST', `/playlists/${idx}/tracks/${trackApiIdx}/select`)
 					}
 				},
 			},
@@ -972,17 +1007,17 @@ function buildInitialState() {
 		position:              0,
 		duration:              0,
 
-		// Playing — привязка к aimp_id плейлиста
+		// Playing — привязка к aimp_id плейлиста, file_path трека
 		playingPlaylistId:     '',   // aimp_id (GUID)
 		playingPlaylistName:   '',
-		playingTrackId:        '',   // track index in playlist
+		playingTrackId:        '',   // file_path (стабильный идентификатор)
 		playingTrackTitle:     '',
 		playingTrackArtist:    '',
 
-		// Focus — привязка к aimp_id плейлиста
+		// Focus — привязка к aimp_id плейлиста, file_path трека
 		focusPlaylistId:       '',   // aimp_id (GUID)
 		focusPlaylistName:     '',
-		focusTrackId:          '',   // track index in playlist
+		focusTrackId:          '',   // file_path (стабильный идентификатор)
 		focusTrackIndex:       0,
 		focusTrackTitle:       '',
 		focusTrackArtist:      '',

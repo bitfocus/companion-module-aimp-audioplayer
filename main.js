@@ -1,4 +1,4 @@
-import { InstanceBase, InstanceStatus } from '@companion-module/base'
+import { InstanceBase, InstanceStatus, combineRgb } from '@companion-module/base'
 
 const BASE_PATH = '/api'
 
@@ -88,6 +88,7 @@ export default class AimpRemote extends InstanceBase {
 				this._connectionOk = false
 			}
 			this.setActionDefinitions(this._buildActions())
+			this.UpdatePresets()
 			this._poll()
 			this._startPolling()
 		} catch (err) {
@@ -301,6 +302,7 @@ export default class AimpRemote extends InstanceBase {
 			'volume_above',
 			'focus_playlist_is', 'focus_track_is',
 			'playing_playlist_is', 'playing_track_is',
+			'is_shuffled', 'is_repeat', 'is_auto_jump',
 		]
 	}
 
@@ -345,6 +347,11 @@ export default class AimpRemote extends InstanceBase {
 		this.state.muted       = status.muted    !== undefined ? status.muted   : this.state.muted
 		this.state.position    = status.position ?? this.state.position
 		this.state.duration    = status.duration ?? this.state.duration
+
+		// ── Shuffle / Repeat / Auto-jump
+		this.state.shuffle   = status.shuffle   !== undefined ? !!status.shuffle   : this.state.shuffle
+		this.state.repeat    = status.repeat    !== undefined ? !!status.repeat    : this.state.repeat
+		this.state.autoJump  = status.auto_jump !== undefined ? !!status.auto_jump : this.state.autoJump
 
 		// ── Playing track ─────────────────────────
 		// playing_playlist содержит aimp_id, playing_track — file_path как стабильный id
@@ -447,6 +454,9 @@ export default class AimpRemote extends InstanceBase {
 			player_state:          { name: 'Player State (playing/paused/stopped)' },
 			volume_pct:            { name: 'Volume (0–100)' },
 			muted:                 { name: 'Muted (true/false)' },
+			shuffle:               { name: 'Shuffle (true/false)' },
+			repeat:                { name: 'Repeat (true/false)' },
+			auto_jump:             { name: 'Auto Jump (true/false)' },
 			position:              { name: 'Position (s)' },
 			position_fmt:          { name: 'Position (mm:ss)' },
 			duration:              { name: 'Duration (s)' },
@@ -484,6 +494,9 @@ export default class AimpRemote extends InstanceBase {
 			remaining:              remaining.toFixed(1),
 			remaining_fmt:          fmtTime(remaining),
 			progress_pct:           progress,
+			shuffle:                s.shuffle,
+			repeat:                 s.repeat,
+			auto_jump:              s.autoJump,
 			playing_track_title:    s.playingTrackTitle,
 			playing_track_artist:   s.playingTrackArtist,
 			playing_playlist_id:    s.playingPlaylistId,
@@ -607,7 +620,582 @@ export default class AimpRemote extends InstanceBase {
 					String(this.state.playingPlaylistId) === String(fb.options.playlistId) &&
 					this.state.playingTrackId === fb.options.trackId,
 			},
+
+			// ══════════════════════════════════════════
+			//  SHUFFLE / REPEAT / AUTO-JUMP
+			// ══════════════════════════════════════════
+
+			is_shuffled: {
+				type: 'boolean',
+				name: 'Player: Is Shuffled',
+				defaultStyle: { bgcolor: 0x8800aa, color: 0xffffff },
+				options: [],
+				callback: () => !!this.state.shuffle,
+			},
+			is_repeat: {
+				type: 'boolean',
+				name: 'Player: Is Repeat On',
+				defaultStyle: { bgcolor: 0x8800aa, color: 0xffffff },
+				options: [],
+				callback: () => !!this.state.repeat,
+			},
+			is_auto_jump: {
+				type: 'boolean',
+				name: 'Player: Is Auto Jump On',
+				defaultStyle: { bgcolor: 0x8800aa, color: 0xffffff },
+				options: [],
+				callback: () => !!this.state.autoJump,
+			},
 		})
+	}
+
+	// ── Presets ──────────────────────────────────
+
+	UpdatePresets() {
+		const presets = {}
+
+		// Play/Pause с индикацией состояния
+		presets['play_pause'] = {
+			type: 'simple',
+			name: 'Play/Pause',
+			style: {
+				text: '$(aimp:track_title)',
+				size: 'auto',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(0, 0, 0),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'play_pause',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [
+				{
+					feedbackId: 'is_playing',
+					options: {},
+					style: {
+						bgcolor: combineRgb(0, 128, 0),
+					},
+				},
+				{
+					feedbackId: 'is_paused',
+					options: {},
+					style: {
+						bgcolor: combineRgb(128, 128, 0),
+					},
+				},
+			],
+		}
+
+		// Stop
+		presets['stop'] = {
+			type: 'simple',
+			name: 'Stop',
+			style: {
+				text: 'STOP',
+				size: '18',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(128, 0, 0),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'stop',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [
+				{
+					feedbackId: 'is_stopped',
+					options: {},
+					style: {
+						bgcolor: combineRgb(255, 0, 0),
+					},
+				},
+			],
+		}
+
+		// Previous Track
+		presets['prev_track'] = {
+			type: 'simple',
+			name: 'Previous Track',
+			style: {
+				text: 'PREV',
+				size: '18',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(64, 64, 64),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'prev',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		// Next Track
+		presets['next_track'] = {
+			type: 'simple',
+			name: 'Next Track',
+			style: {
+				text: 'NEXT',
+				size: '18',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(64, 64, 64),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'next',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		// Volume Up
+		presets['volume_up'] = {
+			type: 'simple',
+			name: 'Volume Up',
+			style: {
+				text: 'VOL+',
+				size: '18',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(0, 100, 150),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'volume_up',
+							options: {
+								step: 5,
+							},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		// Volume Down
+		presets['volume_down'] = {
+			type: 'simple',
+			name: 'Volume Down',
+			style: {
+				text: 'VOL-',
+				size: '18',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(0, 100, 150),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'volume_down',
+							options: {
+								step: 5,
+							},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		// Mute Toggle
+		presets['mute_toggle'] = {
+			type: 'simple',
+			name: 'Mute Toggle',
+			style: {
+				text: 'MUTE',
+				size: '18',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(80, 80, 80),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'mute_toggle',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [
+				{
+					feedbackId: 'is_muted',
+					options: {},
+					style: {
+						bgcolor: combineRgb(255, 0, 0),
+					},
+				},
+			],
+		}
+
+		// Shuffle Toggle
+		presets['shuffle_toggle'] = {
+			type: 'simple',
+			name: 'Shuffle Toggle',
+			style: {
+				text: 'SHUFFLE',
+				size: '14',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(60, 60, 60),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'shuffle_toggle',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [
+				{
+					feedbackId: 'is_shuffled',
+					options: {},
+					style: {
+						bgcolor: combineRgb(136, 0, 170),
+					},
+				},
+			],
+		}
+
+		// Repeat Toggle
+		presets['repeat_toggle'] = {
+			type: 'simple',
+			name: 'Repeat Toggle',
+			style: {
+				text: 'REPEAT',
+				size: '14',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(60, 60, 60),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'repeat_toggle',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [
+				{
+					feedbackId: 'is_repeat',
+					options: {},
+					style: {
+						bgcolor: combineRgb(136, 0, 170),
+					},
+				},
+			],
+		}
+
+		// Auto Jump Toggle
+		presets['auto_jump_toggle'] = {
+			type: 'simple',
+			name: 'Auto Jump Toggle',
+			style: {
+				text: 'AUTO\\nJUMP',
+				size: '14',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(60, 60, 60),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'auto_jump_toggle',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [
+				{
+					feedbackId: 'is_auto_jump',
+					options: {},
+					style: {
+						bgcolor: combineRgb(136, 0, 170),
+					},
+				},
+			],
+		}
+
+		// Volume Display
+		presets['volume_display'] = {
+			type: 'simple',
+			name: 'Volume Display',
+			style: {
+				text: '$(aimp:volume_pct)%',
+				size: '24',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(40, 40, 40),
+			},
+			steps: [],
+			feedbacks: [],
+		}
+
+		// Track Info Display
+		presets['track_info'] = {
+			type: 'simple',
+			name: 'Track Info',
+			style: {
+				text: '$(aimp:playing_track_artist)\\n$(aimp:playing_track_title)',
+				size: 'auto',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(20, 20, 20),
+			},
+			steps: [],
+			feedbacks: [],
+		}
+
+		// Progress Display
+		presets['progress_display'] = {
+			type: 'simple',
+			name: 'Progress Display',
+			style: {
+				text: '$(aimp:position_fmt):$(aimp:remaining_fmt)\\n$(aimp:duration_fmt)',
+				size: '18',
+				color: combineRgb(200, 200, 200),
+				bgcolor: combineRgb(20, 20, 20),
+			},
+			steps: [],
+			feedbacks: [],
+		}
+
+		// Playlist Selection (первые 4 плейлиста как примеры)
+		const playlists = this.playlistChoices || []
+		for (let i = 0; i < Math.min(4, playlists.length); i++) {
+			const pl = playlists[i]
+			presets[`playlist_${i}`] = {
+				type: 'simple',
+				name: `Play ${pl.label}`,
+				style: {
+					text: pl.label,
+					size: 'auto',
+					color: combineRgb(255, 255, 255),
+					bgcolor: combineRgb(100, 50, 150),
+				},
+				steps: [
+					{
+						down: [
+							{
+								actionId: 'playlist_play',
+								options: {
+									playlistId: pl.id,
+								},
+							},
+						],
+						up: [],
+					},
+				],
+				feedbacks: [
+					{
+						feedbackId: 'playing_playlist_is',
+						options: {
+							playlistId: pl.id,
+						},
+						style: {
+							bgcolor: combineRgb(0, 150, 0),
+						},
+					},
+				],
+			}
+		}
+
+		// Focus Playlist Next — показывает какой плейлист сейчас в фокусе
+		presets['focus_playlist_next'] = {
+			type: 'simple',
+			name: 'Focus: Next Playlist (show name)',
+			style: {
+				text: '$(aimp:focus_playlist_name)',
+				size: 'auto',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(40, 80, 120),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'focus_playlist_next',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		// Track Browse — выбор трека из плейлиста через browse-dropdown
+		presets['track_browse'] = {
+			type: 'simple',
+			name: 'Track: Browse & Play',
+			style: {
+				text: 'TRACK',
+				size: '18',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(80, 40, 80),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'track_action_browse',
+							options: {
+								action: 'play',
+							},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		// Focus Previous Playlist
+		presets['focus_playlist_prev'] = {
+			type: 'simple',
+			name: 'Focus: Previous Playlist',
+			style: {
+				text: 'PL\\nPREV',
+				size: '14',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(40, 80, 120),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'focus_playlist_prev',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		// Focus Next Track
+		presets['focus_track_next'] = {
+			type: 'simple',
+			name: 'Focus: Next Track',
+			style: {
+				text: 'TRK\\nNEXT',
+				size: '14',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(40, 80, 120),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'focus_track_next',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		// Focus Previous Track
+		presets['focus_track_prev'] = {
+			type: 'simple',
+			name: 'Focus: Previous Track',
+			style: {
+				text: 'TRK\\nPREV',
+				size: '14',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(40, 80, 120),
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'focus_track_prev',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		const structure = [
+			{
+				id: 'playback',
+				name: 'Playback',
+				definitions: ['play_pause', 'stop', 'prev_track', 'next_track'],
+			},
+			{
+				id: 'volume',
+				name: 'Volume',
+				definitions: ['volume_up', 'volume_down', 'mute_toggle', 'volume_display'],
+			},
+			{
+				id: 'shuffle_repeat',
+				name: 'Shuffle / Repeat / Auto Jump',
+				definitions: ['shuffle_toggle', 'repeat_toggle', 'auto_jump_toggle'],
+			},
+			{
+				id: 'info',
+				name: 'Info',
+				definitions: ['track_info', 'progress_display'],
+			},
+			{
+				id: 'focus',
+				name: 'Focus',
+				definitions: ['focus_playlist_next', 'focus_playlist_prev', 'focus_track_next', 'focus_track_prev'],
+			},
+			{
+				id: 'tracks',
+				name: 'Tracks',
+				definitions: ['track_browse'],
+			},
+			{
+				id: 'playlists',
+				name: 'Playlists',
+				definitions: playlists.slice(0, 4).map((_, i) => `playlist_${i}`),
+			},
+		]
+
+		this.setPresetDefinitions(structure, presets)
 	}
 
 	// ── Actions ──────────────────────────────────
@@ -669,6 +1257,26 @@ export default class AimpRemote extends InstanceBase {
 				name: '🔇 Mute Toggle',
 				options: [],
 				callback: async () => { await this._request('POST', '/player/mute') },
+			},
+
+			// ══════════════════════════════════════════
+			//  SHUFFLE / REPEAT / AUTO-JUMP
+			// ══════════════════════════════════════════
+
+			shuffle_toggle: {
+				name: '🔀 Shuffle Toggle',
+				options: [],
+				callback: async () => { await this._request('POST', '/player/shuffle') },
+			},
+			repeat_toggle: {
+				name: '🔁 Repeat Toggle',
+				options: [],
+				callback: async () => { await this._request('POST', '/player/repeat') },
+			},
+			auto_jump_toggle: {
+				name: '⏭ Auto Jump Toggle',
+				options: [],
+				callback: async () => { await this._request('POST', '/player/auto-jump') },
 			},
 			set_volume: {
 				name: '🔊 Set Volume (absolute)',
@@ -1022,7 +1630,14 @@ function buildInitialState() {
 		focusTrackTitle:       '',
 		focusTrackArtist:      '',
 
+		// Shuffle / Repeat / Auto-jump
+		shuffle:               false,
+		repeat:                false,
+		autoJump:              false,
+
 		// Internal — отслеживание изменений по aimp_id
 		_playlistAimpIds:      '',
 	}
 }
+
+

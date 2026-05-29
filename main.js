@@ -43,8 +43,8 @@ export default class AimpRemote extends InstanceBase {
 	getConfigFields() {
 		return [
 			{ type: 'textinput', id: 'host',        label: 'AIMP API Host',              default: '127.0.0.1', width: 6 },
-			{ type: 'number',    id: 'port',         label: 'Port',                        default: 3553, min: 1, max: 65535, width: 3 },
-			{ type: 'number',    id: 'pollInterval', label: 'Poll interval (ms, 0 = off)', default: 1000, min: 0, max: 60000, width: 3 },
+			{ type: 'number',    id: 'port',         label: 'Port',                        default: 19122, min: 1, max: 65535, width: 3 },
+			{ type: 'number',    id: 'pollInterval', label: 'Poll interval (ms, 0 = off)', default: 80, min: 0, max: 60000, width: 3 },
 		]
 	}
 
@@ -360,8 +360,13 @@ export default class AimpRemote extends InstanceBase {
 		this.state.playingPlaylistId   = pp != null ? String(pp.aimp_id ?? pp.id) : ''
 		this.state.playingPlaylistName = pp != null ? (pp.name ?? '') : ''
 		this.state.playingTrackId      = pt != null ? (pt.file_path || String(pt.id)) : ''
-		this.state.playingTrackTitle   = pt != null ? (pt.title  ?? '') : ''
-		this.state.playingTrackArtist  = pt != null ? (pt.artist ?? '') : ''
+		this.state.playingTrackTitle   = this.state.playerState === 'stopped' ? 'STOPPED' : (pt?.title ?? '')
+		this.state.playingTrackArtist  = this.state.playerState === 'stopped' ? '' : (pt?.artist ?? '')
+
+		// ── Next track ──────────────────────────
+		const nt = status.next_track
+		this.state.nextTrackTitle  = nt != null ? (nt.title  ?? '') : ''
+		this.state.nextTrackArtist = nt != null ? (nt.artist ?? '') : ''
 
 		// ── Focus state ───────────────────────────
 		const fp = status.focus_playlist
@@ -475,6 +480,8 @@ export default class AimpRemote extends InstanceBase {
 			focus_track_index:     { name: 'Focus Track Index (0-based)' },
 			focus_track_title:     { name: 'Focus Track Title' },
 			focus_track_artist:    { name: 'Focus Track Artist' },
+			next_track_title:      { name: 'Next Track Title' },
+			next_track_artist:     { name: 'Next Track Artist' },
 		})
 	}
 
@@ -508,6 +515,8 @@ export default class AimpRemote extends InstanceBase {
 			focus_track_index:      s.focusTrackIndex,
 			focus_track_title:      s.focusTrackTitle,
 			focus_track_artist:     s.focusTrackArtist,
+			next_track_title:       s.nextTrackTitle,
+			next_track_artist:      s.nextTrackArtist,
 		})
 	}
 
@@ -658,12 +667,14 @@ export default class AimpRemote extends InstanceBase {
 		presets['play_pause'] = {
 			type: 'simple',
 			name: 'Play/Pause',
+
 			style: {
-				text: '$(aimp:track_title)',
-				size: 'auto',
+				text: '⏯',
+				size: '40',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 0, 0),
 			},
+
 			steps: [
 				{
 					down: [
@@ -675,11 +686,13 @@ export default class AimpRemote extends InstanceBase {
 					up: [],
 				},
 			],
+
 			feedbacks: [
 				{
 					feedbackId: 'is_playing',
 					options: {},
 					style: {
+						text: '⏸',
 						bgcolor: combineRgb(0, 128, 0),
 					},
 				},
@@ -687,6 +700,7 @@ export default class AimpRemote extends InstanceBase {
 					feedbackId: 'is_paused',
 					options: {},
 					style: {
+						text: '►',
 						bgcolor: combineRgb(128, 128, 0),
 					},
 				},
@@ -697,12 +711,14 @@ export default class AimpRemote extends InstanceBase {
 		presets['stop'] = {
 			type: 'simple',
 			name: 'Stop',
+
 			style: {
-				text: 'STOP',
-				size: '18',
+				text: '⬛',
+				size: '40',
 				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(128, 0, 0),
+				bgcolor: combineRgb(0, 0, 0),
 			},
+
 			steps: [
 				{
 					down: [
@@ -714,12 +730,24 @@ export default class AimpRemote extends InstanceBase {
 					up: [],
 				},
 			],
+
 			feedbacks: [
 				{
 					feedbackId: 'is_stopped',
 					options: {},
 					style: {
-						bgcolor: combineRgb(255, 0, 0),
+						text: '⬛',
+						size: '40',
+						color: combineRgb(255, 0, 0),
+						bgcolor: combineRgb(0, 0, 0),
+					},
+				},
+				{
+					type: 'internal',
+					feedbackId: 'flash',
+					options: {
+						color: combineRgb(255, 0, 0),
+						bgcolor: combineRgb(0, 0, 0),
 					},
 				},
 			],
@@ -729,12 +757,14 @@ export default class AimpRemote extends InstanceBase {
 		presets['prev_track'] = {
 			type: 'simple',
 			name: 'Previous Track',
+
 			style: {
-				text: 'PREV',
-				size: '18',
+				text: '⏮',
+				size: '40',
 				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(64, 64, 64),
+				bgcolor: combineRgb(0, 0, 0),
 			},
+
 			steps: [
 				{
 					down: [
@@ -746,6 +776,7 @@ export default class AimpRemote extends InstanceBase {
 					up: [],
 				},
 			],
+
 			feedbacks: [],
 		}
 
@@ -753,12 +784,14 @@ export default class AimpRemote extends InstanceBase {
 		presets['next_track'] = {
 			type: 'simple',
 			name: 'Next Track',
+
 			style: {
-				text: 'NEXT',
-				size: '18',
+				text: '⏭',
+				size: '40',
 				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(64, 64, 64),
+				bgcolor: combineRgb(0, 0, 0),
 			},
+
 			steps: [
 				{
 					down: [
@@ -770,6 +803,7 @@ export default class AimpRemote extends InstanceBase {
 					up: [],
 				},
 			],
+
 			feedbacks: [],
 		}
 
@@ -778,7 +812,7 @@ export default class AimpRemote extends InstanceBase {
 			type: 'simple',
 			name: 'Volume Up',
 			style: {
-				text: 'VOL+',
+				text: 'VOL\n+',
 				size: '18',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 100, 150),
@@ -789,7 +823,7 @@ export default class AimpRemote extends InstanceBase {
 						{
 							actionId: 'volume_up',
 							options: {
-								step: 5,
+								step: 20,
 							},
 						},
 					],
@@ -804,7 +838,7 @@ export default class AimpRemote extends InstanceBase {
 			type: 'simple',
 			name: 'Volume Down',
 			style: {
-				text: 'VOL-',
+				text: 'VOL\n—',
 				size: '18',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 100, 150),
@@ -815,7 +849,7 @@ export default class AimpRemote extends InstanceBase {
 						{
 							actionId: 'volume_down',
 							options: {
-								step: 5,
+								step: 20,
 							},
 						},
 					],
@@ -829,12 +863,14 @@ export default class AimpRemote extends InstanceBase {
 		presets['mute_toggle'] = {
 			type: 'simple',
 			name: 'Mute Toggle',
+
 			style: {
 				text: 'MUTE',
 				size: '18',
-				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(80, 80, 80),
+				color: combineRgb(255, 0, 0),
+				bgcolor: combineRgb(255, 255, 255),
 			},
+
 			steps: [
 				{
 					down: [
@@ -846,11 +882,22 @@ export default class AimpRemote extends InstanceBase {
 					up: [],
 				},
 			],
+
 			feedbacks: [
 				{
 					feedbackId: 'is_muted',
 					options: {},
 					style: {
+						text: 'MUTE',
+						color: combineRgb(0, 0, 0),
+						bgcolor: combineRgb(255, 0, 0),
+					},
+				},
+				{
+					type: 'internal',
+					feedbackId: 'flash',
+					options: {
+						color: combineRgb(0, 0, 0),
 						bgcolor: combineRgb(255, 0, 0),
 					},
 				},
@@ -861,12 +908,14 @@ export default class AimpRemote extends InstanceBase {
 		presets['shuffle_toggle'] = {
 			type: 'simple',
 			name: 'Shuffle Toggle',
+
 			style: {
-				text: 'SHUFFLE',
+				text: '⤭\nSHUFFLE',
 				size: '14',
 				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(60, 60, 60),
+				bgcolor: combineRgb(0, 0, 0),
 			},
+
 			steps: [
 				{
 					down: [
@@ -878,12 +927,15 @@ export default class AimpRemote extends InstanceBase {
 					up: [],
 				},
 			],
+
 			feedbacks: [
 				{
 					feedbackId: 'is_shuffled',
 					options: {},
 					style: {
-						bgcolor: combineRgb(136, 0, 170),
+						text: '⤭\nSHUFFLE',
+						color: combineRgb(255, 140, 0),
+						bgcolor: combineRgb(40, 40, 40),
 					},
 				},
 			],
@@ -893,12 +945,14 @@ export default class AimpRemote extends InstanceBase {
 		presets['repeat_toggle'] = {
 			type: 'simple',
 			name: 'Repeat Toggle',
+
 			style: {
-				text: 'REPEAT',
+				text: '⭮\nREPEAT',
 				size: '14',
 				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(60, 60, 60),
+				bgcolor: combineRgb(0, 0, 0),
 			},
+
 			steps: [
 				{
 					down: [
@@ -910,12 +964,15 @@ export default class AimpRemote extends InstanceBase {
 					up: [],
 				},
 			],
+
 			feedbacks: [
 				{
 					feedbackId: 'is_repeat',
 					options: {},
 					style: {
-						bgcolor: combineRgb(136, 0, 170),
+						text: '⭮\nREPEAT',
+						color: combineRgb(255, 140, 0),
+						bgcolor: combineRgb(40, 40, 40),
 					},
 				},
 			],
@@ -924,13 +981,15 @@ export default class AimpRemote extends InstanceBase {
 		// Auto Jump Toggle
 		presets['auto_jump_toggle'] = {
 			type: 'simple',
-			name: 'Auto Jump Toggle',
+			name: 'AUTO NEXT',
+
 			style: {
-				text: 'AUTO\\nJUMP',
+				text: 'AUTO NEXT\n⛔',
 				size: '14',
-				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(60, 60, 60),
+				color: combineRgb(255, 0, 0),
+				bgcolor: combineRgb(0, 0, 0),
 			},
+
 			steps: [
 				{
 					down: [
@@ -942,12 +1001,23 @@ export default class AimpRemote extends InstanceBase {
 					up: [],
 				},
 			],
+
 			feedbacks: [
 				{
 					feedbackId: 'is_auto_jump',
 					options: {},
 					style: {
-						bgcolor: combineRgb(136, 0, 170),
+						text: 'AUTO\nNEXT',
+						color: combineRgb(0, 255, 0),
+						bgcolor: combineRgb(0, 0, 0),
+					},
+				},
+				{
+					type: 'internal',
+					feedbackId: 'flash',
+					options: {
+						color: combineRgb(255, 0, 0),
+						bgcolor: combineRgb(0, 0, 0),
 					},
 				},
 			],
@@ -957,14 +1027,33 @@ export default class AimpRemote extends InstanceBase {
 		presets['volume_display'] = {
 			type: 'simple',
 			name: 'Volume Display',
+
 			style: {
 				text: '$(aimp:volume_pct)%',
 				size: '24',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(40, 40, 40),
 			},
+
 			steps: [],
-			feedbacks: [],
+
+			feedbacks: [
+				{
+					type: 'internal',
+					feedbackId: 'compare',
+					options: {
+						// переменная Companion
+						variable: 'aimp:volume_pct',
+						// условие
+						operation: 'eq',
+						value: 0,
+					},
+					style: {
+						color: combineRgb(255, 0, 0),
+						bgcolor: combineRgb(20, 0, 0),
+					},
+				},
+			],
 		}
 
 		// Track Info Display
@@ -972,8 +1061,30 @@ export default class AimpRemote extends InstanceBase {
 			type: 'simple',
 			name: 'Track Info',
 			style: {
-				text: '$(aimp:playing_track_artist)\\n$(aimp:playing_track_title)',
-				size: 'auto',
+				text: 'Play NOW:\n$(aimp:playing_track_artist)\n$(aimp:playing_track_title)',
+				size: '10',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(20, 20, 20),
+			},
+			steps: [],
+			feedbacks: [
+				{
+					feedbackId: 'is_stopped',
+					options: {},
+					style: {
+						color: combineRgb(255, 0, 0),
+					},
+				},
+			],
+		}
+
+		// Next Track Info
+		presets['next_track_info'] = {
+			type: 'simple',
+			name: 'Next Track Info',
+			style: {
+				text: 'Play NEXT:\n$(aimp:next_track_artist)\n$(aimp:next_track_title)',
+				size: '10',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(20, 20, 20),
 			},
@@ -986,8 +1097,8 @@ export default class AimpRemote extends InstanceBase {
 			type: 'simple',
 			name: 'Progress Display',
 			style: {
-				text: '$(aimp:position_fmt):$(aimp:remaining_fmt)\\n$(aimp:duration_fmt)',
-				size: '18',
+				text: '$(aimp:position_fmt) | $(aimp:remaining_fmt)\n$(aimp:duration_fmt)',
+				size: '12',
 				color: combineRgb(200, 200, 200),
 				bgcolor: combineRgb(20, 20, 20),
 			},
@@ -1040,16 +1151,72 @@ export default class AimpRemote extends InstanceBase {
 			type: 'simple',
 			name: 'Focus: Next Playlist (show name)',
 			style: {
-				text: '$(aimp:focus_playlist_name)',
-				size: 'auto',
+				text: 'Focus:\n NEXT PL',
+				size: '12',
 				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(40, 80, 120),
+				bgcolor: combineRgb(51, 25, 0),
 			},
 			steps: [
 				{
 					down: [
 						{
 							actionId: 'focus_playlist_next',
+							options: {},
+						},
+					],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+
+		presets['focus_track_info'] = {
+			type: 'simple',
+			name: 'Focus Track Info',
+
+			style: {
+				text: 'Focus TR:\n$(aimp-remote:focus_track_artist)\n$(aimp-remote:focus_track_title)',
+				size: '12',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(0, 70, 0),
+			},
+
+			steps: [],
+			feedbacks: [],
+		}
+
+		presets['focus_playlist_info'] = {
+			type: 'simple',
+			name: 'Focus Playlist Info',
+
+			style: {
+				text: 'Focus PL:\n$(aimp-remote:focus_playlist_name)',
+				size: '12',
+				color: combineRgb(255, 255, 255),
+				bgcolor: combineRgb(102, 51, 0),
+			},
+
+			steps: [],
+			feedbacks: [],
+		}
+
+		// Focus: Play
+		presets['focus_play'] = {
+			type: 'simple',
+			name: 'Focus: PLAY',
+
+			style: {
+				text: '⏎',
+				size: '44',
+				color: combineRgb(255, 140, 0),
+				bgcolor: combineRgb(40, 40, 40),
+			},
+
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'focus_play',
 							options: {},
 						},
 					],
@@ -1090,10 +1257,10 @@ export default class AimpRemote extends InstanceBase {
 			type: 'simple',
 			name: 'Focus: Previous Playlist',
 			style: {
-				text: 'PL\\nPREV',
-				size: '14',
+				text: 'Focus:\nPREV PL',
+				size: '12',
 				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(40, 80, 120),
+				bgcolor: combineRgb(51, 25, 0),
 			},
 			steps: [
 				{
@@ -1114,10 +1281,10 @@ export default class AimpRemote extends InstanceBase {
 			type: 'simple',
 			name: 'Focus: Next Track',
 			style: {
-				text: 'TRK\\nNEXT',
-				size: '14',
+				text: 'Focus:\nNEXT TR',
+				size: '12',
 				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(40, 80, 120),
+				bgcolor: combineRgb(0, 30, 0),
 			},
 			steps: [
 				{
@@ -1138,10 +1305,10 @@ export default class AimpRemote extends InstanceBase {
 			type: 'simple',
 			name: 'Focus: Previous Track',
 			style: {
-				text: 'TRK\\nPREV',
-				size: '14',
+				text: 'Focus:\nPREV TR',
+				size: '12',
 				color: combineRgb(255, 255, 255),
-				bgcolor: combineRgb(40, 80, 120),
+				bgcolor: combineRgb(0, 30, 0),
 			},
 			steps: [
 				{
@@ -1176,16 +1343,16 @@ export default class AimpRemote extends InstanceBase {
 			{
 				id: 'info',
 				name: 'Info',
-				definitions: ['track_info', 'progress_display'],
+				definitions: ['track_info', 'next_track_info', 'progress_display'],
 			},
 			{
 				id: 'focus',
 				name: 'Focus',
-				definitions: ['focus_playlist_next', 'focus_playlist_prev', 'focus_track_next', 'focus_track_prev'],
+				definitions: ['focus_playlist_next', 'focus_playlist_prev', 'focus_track_next', 'focus_track_prev', 'focus_play', 'focus_playlist_info', 'focus_track_info'],
 			},
 			{
 				id: 'tracks',
-				name: 'Tracks',
+				name: 'Play this track',
 				definitions: ['track_browse'],
 			},
 			{
@@ -1629,6 +1796,10 @@ function buildInitialState() {
 		focusTrackIndex:       0,
 		focusTrackTitle:       '',
 		focusTrackArtist:      '',
+
+		// Next track (from API)
+		nextTrackTitle:        '',
+		nextTrackArtist:       '',
 
 		// Shuffle / Repeat / Auto-jump
 		shuffle:               false,

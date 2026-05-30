@@ -838,7 +838,7 @@ export default class AimpRemote extends InstanceBase {
 			type: 'simple',
 			name: 'Volume Down',
 			style: {
-				text: 'VOL\n—',
+				text: 'VOL\n–',
 				size: '18',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 100, 150),

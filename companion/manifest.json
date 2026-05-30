@@ -3,7 +3,7 @@
   "name": "AIMP Remote Control",
   "shortname": "aimp-remote",
   "description": "Control AIMP via HTTP Remote API Plugin",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "connection",
   "license": "MIT",
   "repository": "git+https://gitlab.com/slvmadi/companion-aimp-module.git.git",

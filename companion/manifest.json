@@ -3,7 +3,7 @@
   "name": "AIMP Remote Control",
   "shortname": "aimp-remote",
   "description": "Control AIMP via HTTP Remote API Plugin",
-  "version": "0.3.9",
+  "version": "0.4.0",
   "type": "connection",
   "license": "MIT",
   "repository": "git+https://gitlab.com/slvmadi/companion-aimp-module.git.git",
@@ -11,7 +11,7 @@
   "maintainers": [
     {
       "name": "mikle103, fursyt12",
-      "email": "your@email.com"
+      "email": "info@slv-tech.ru"
     }
   ],
   "legacyIds": [],
@@ -21,7 +21,7 @@
     "apiVersion": "0.0.0",
     "entrypoint": "../main.js"
   },
-  "manufacturer": "SLV Dev Team",
+  "manufacturer": "SLV Tech",
   "products": ["AIMP"],
   "keywords": ["aimp", "audio", "player", "music"]
 }

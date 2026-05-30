@@ -1,15 +1,35 @@
-# Описание
+# Companion AIMP Module
 
-Модуль Bitfocus Companion для удаленного управления плеером AIMP. Для работы модуля необходимо установить соответсвующий плагин в сам плеер AIMP HTTP Remote Control из каталога дополнений на сайте плеера или из репозитория.
+[English](#english) | [Русский](#русский)
 
+---
 
+## English
 
-# Сборка
+A Bitfocus Companion module for remote control of the AIMP music player. The module requires the **AIMP HTTP Remote Control** plugin to be installed in the player — available from the AIMP add-ons catalog on the player's website or from the [repository](https://github.com/slv-tech/AIMP-HTTP-Remote-Control).
+
+### Build
 
 ```
 npm run build
 ```
 
-# Запуск
+### Setup
 
-Установить aimp-remote-1.0.0 в Companion через меню modules. Указать ip адрес устройства, на котором запущен плеер и порт (стандартный порт 19122). При необходимости можно изменить время обновления - оптимально 80 мс. Порт и интерфейс также можно изменить в настройках плагина в самом плеере.
+Install `aimp-remote-0.5.1` in Companion via the modules menu. Enter the IP address of the device running the player and the port (default port: 19122). The update interval can be adjusted if needed — 80 ms is optimal. The port and network interface can also be changed in the plugin settings within the player itself.
+
+---
+
+## Русский
+
+Модуль Bitfocus Companion для удалённого управления плеером AIMP. Для работы модуля необходимо установить плагин **AIMP HTTP Remote Control** в сам плеер — доступен из каталога дополнений на сайте плеера или из [репозитория](https://github.com/slv-tech/AIMP-HTTP-Remote-Control).
+
+### Сборка
+
+```
+npm run build
+```
+
+### Запуск
+
+Установить `aimp-remote-0.5.1` в Companion через меню modules. Указать IP-адрес устройства, на котором запущен плеер, и порт (стандартный порт: 19122). При необходимости можно изменить время обновления — оптимально 80 мс. Порт и интерфейс также можно изменить в настройках плагина в самом плеере.

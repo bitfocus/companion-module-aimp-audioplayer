@@ -2,7 +2,7 @@
   "id": "aimp-remote",
   "name": "AIMP Remote Control",
   "shortname": "aimp-remote",
-  "description": "Control AIMP via HTTP Remote API Plugin",
+  "description": "Control AIMP via HTTP Remote Contol Plugin",
   "version": "0.4.1",
   "type": "connection",
   "license": "MIT",

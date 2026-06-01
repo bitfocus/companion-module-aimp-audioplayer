@@ -17,7 +17,7 @@ npm run build
 
 ### Setup
 
-Install `aimp-remote-0.5.1` in Companion via the modules menu. Enter the IP address of the device running the player and the port (default port: 19122). The update interval can be adjusted if needed — 80 ms is optimal. The port and network interface can also be changed in the plugin settings within the player itself.
+Install `aimp-remote-1.0.0` in Companion via the modules menu. Enter the IP address of the device running the player and the port (default port: 19122). The update interval can be adjusted if needed — 80 ms is optimal. The port and network interface can also be changed in the plugin settings within the player itself.
 
 ---
 
@@ -34,4 +34,4 @@ npm run build
 
 ### Запуск
 
-Установить `aimp-remote-0.5.1` в Companion через меню modules. Указать IP-адрес устройства, на котором запущен плеер, и порт (стандартный порт: 19122). При необходимости можно изменить время обновления — оптимально 80 мс. Порт и интерфейс также можно изменить в настройках плагина в самом плеере.
+Установить `aimp-remote-1.0.0` в Companion через меню modules. Указать IP-адрес устройства, на котором запущен плеер, и порт (стандартный порт: 19122). При необходимости можно изменить время обновления — оптимально 80 мс. Порт и интерфейс также можно изменить в настройках плагина в самом плеере.

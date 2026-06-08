@@ -1,6 +1,6 @@
 {
   "name": "companion-module-aimp-remote",
-  "version": "0.5.1",
+  "version": "1.0.0",
   "type": "module",
   "main": "src/main.js",
   "manufacturer": "AIMP",

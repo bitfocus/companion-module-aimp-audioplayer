@@ -3,11 +3,11 @@
   "name": "AIMP Remote Control",
   "shortname": "aimp-remote",
   "description": "Control AIMP via HTTP Remote Contol Plugin",
-  "version": "0.5.1",
+  "version": "1.0.0",
   "type": "connection",
   "license": "MIT",
-  "repository": "git+https://github.com/slv-tech/companion-aimp-module/",
-  "bugs": "https://github.com/slv-tech/companion-aimp-module/issues",
+  "repository": "git+https://github.com/bitfocus/companion-module-aimp-audioplayer",
+  "bugs": "https://github.com/bitfocus/companion-module-aimp-audioplayer/issues",
   "maintainers": [
     {
       "name": "mikle103, fursyt12",

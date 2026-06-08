@@ -1,5 +1,5 @@
 {
-  "id": "aimp-remote",
+  "id": "aimp-audioplayer",
   "name": "AIMP Remote Control",
   "shortname": "aimp-remote",
   "description": "Control AIMP via HTTP Remote Contol Plugin",
